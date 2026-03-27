@@ -1,5 +1,5 @@
 # client.py
-# UMBC Socket Chat (Option 1) — connect to server, two-way console chat
+# UMBC-ChatLink — connect to server, two-way console chat
 
 import socket
 import sys
@@ -7,10 +7,12 @@ import threading
 from datetime import datetime
 
 APP_TITLE = "UMBC-ChatLink"
-QUIT_CMD = "/quit"   # MUST match server
+QUIT_CMD = "/quit"
+
 
 def ts_short() -> str:
     return datetime.now().strftime("%H:%M:%S")
+
 
 def parse_port(argv) -> int:
     if len(argv) != 2:
@@ -30,8 +32,9 @@ def parse_port(argv) -> int:
 
     return port
 
+
 def server_listener(sock: socket.socket, state: dict) -> None:
-    # Receives messages from server until quit/disconnect.
+    # Receives messages from the server until quit or disconnect.
     while not state["stop"]:
         try:
             data = sock.recv(4096)
@@ -44,7 +47,7 @@ def server_listener(sock: socket.socket, state: dict) -> None:
             state["stop"] = True
             break
 
-        msg = data.decode(errors="replace").strip()
+        msg = data.decode("utf-8", errors="replace").strip()
 
         if msg.lower() == QUIT_CMD.lower():
             print("\n[Server ended chat]")
@@ -52,6 +55,7 @@ def server_listener(sock: socket.socket, state: dict) -> None:
             break
 
         print(f"\n{ts_short()} | Server: {msg}")
+
 
 def main() -> None:
     port = parse_port(sys.argv)
@@ -62,9 +66,8 @@ def main() -> None:
     try:
         sock.connect(("127.0.0.1", port))
 
-        # Required: display welcome message
         try:
-            welcome = sock.recv(4096).decode(errors="replace").strip()
+            welcome = sock.recv(4096).decode("utf-8", errors="replace").strip()
             if welcome:
                 print(welcome)
         except OSError:
@@ -72,8 +75,10 @@ def main() -> None:
 
         print(f"{APP_TITLE} client ready. Type {QUIT_CMD} to exit.\n")
 
-        t = threading.Thread(target=server_listener, args=(sock, state), daemon=True)
-        t.start()
+        listener_thread = threading.Thread(
+            target=server_listener, args=(sock, state), daemon=True
+        )
+        listener_thread.start()
 
         while not state["stop"]:
             try:
@@ -83,14 +88,14 @@ def main() -> None:
 
             if out.lower() == QUIT_CMD.lower():
                 try:
-                    sock.sendall((QUIT_CMD + "\n").encode())
+                    sock.sendall((QUIT_CMD + "\n").encode("utf-8"))
                 except OSError:
                     pass
                 state["stop"] = True
                 break
 
             try:
-                sock.sendall((out + "\n").encode())
+                sock.sendall((out + "\n").encode("utf-8"))
             except OSError:
                 print("[Send failed: server not available]")
                 state["stop"] = True
@@ -105,5 +110,8 @@ def main() -> None:
             pass
         print("[Client closed cleanly]")
 
+
 if __name__ == "__main__":
     main()
+
+# Version updated
