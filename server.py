@@ -1,5 +1,5 @@
 # server.py
-# UMBC Socket Chat (Option 1) — 1 server, 1 client, two-way console chat
+# UMBC-ChatLink — 1 server, 1 client, two-way console chat
 
 import socket
 import sys
@@ -7,12 +7,14 @@ import threading
 from datetime import datetime
 
 APP_TITLE = "UMBC-ChatLink"
-QUIT_CMD = "/quit"                 # change if you want, but MUST match client
-LOG_ENABLED = True                 # set False if you don’t want a log file
-LOG_PATH = "server_chatlog.txt"    # change name if you want
+QUIT_CMD = "/quit"
+LOG_ENABLED = True
+LOG_PATH = "server_chatlog.txt"
+
 
 def ts_full() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def write_log(line: str) -> None:
     if not LOG_ENABLED:
@@ -23,6 +25,7 @@ def write_log(line: str) -> None:
     except OSError:
         # Logging should never break the chat
         pass
+
 
 def parse_port(argv) -> int:
     if len(argv) != 2:
@@ -42,8 +45,9 @@ def parse_port(argv) -> int:
 
     return port
 
+
 def client_listener(conn: socket.socket, state: dict) -> None:
-    # Receives messages from the client and prints them until quit/disconnect.
+    # Receives messages from the client until quit or disconnect.
     while not state["stop"]:
         try:
             data = conn.recv(4096)
@@ -57,7 +61,7 @@ def client_listener(conn: socket.socket, state: dict) -> None:
             state["stop"] = True
             break
 
-        msg = data.decode(errors="replace").strip()
+        msg = data.decode("utf-8", errors="replace").strip()
 
         if msg.lower() == QUIT_CMD.lower():
             print("\n[Client ended chat]")
@@ -68,6 +72,7 @@ def client_listener(conn: socket.socket, state: dict) -> None:
         line = f"{ts_full()} | Client: {msg}"
         print("\n" + line)
         write_log(line)
+
 
 def main() -> None:
     port = parse_port(sys.argv)
@@ -81,24 +86,25 @@ def main() -> None:
     try:
         server_sock.bind(("0.0.0.0", port))
         server_sock.listen(1)
-        print(f"{APP_TITLE} server up on port {port} (waiting for 1 client)")
+        print(f"{APP_TITLE} server is running on port {port} and waiting for 1 client...")
 
         conn, addr = server_sock.accept()
         print(f"Connected -> {addr[0]}:{addr[1]}")
         write_log(f"{ts_full()} | CONNECT {addr[0]}:{addr[1]}")
 
-        # Required: welcome message
         welcome = (
             f"Welcome to {APP_TITLE}.\n"
+            f"You can use standard UTF-8 text, including accents, symbols, and many emojis.\n"
             f"Type {QUIT_CMD} to exit.\n"
         )
-        conn.sendall(welcome.encode())
+        conn.sendall(welcome.encode("utf-8"))
 
         state = {"stop": False}
-        t = threading.Thread(target=client_listener, args=(conn, state), daemon=True)
-        t.start()
+        listener_thread = threading.Thread(
+            target=client_listener, args=(conn, state), daemon=True
+        )
+        listener_thread.start()
 
-        # Server outgoing messages (console -> client)
         while not state["stop"]:
             try:
                 out = input("Server> ").strip()
@@ -107,7 +113,7 @@ def main() -> None:
 
             if out.lower() == QUIT_CMD.lower():
                 try:
-                    conn.sendall((QUIT_CMD + "\n").encode())
+                    conn.sendall((QUIT_CMD + "\n").encode("utf-8"))
                 except OSError:
                     pass
                 write_log(f"{ts_full()} | SERVER_QUIT")
@@ -118,7 +124,7 @@ def main() -> None:
             write_log(send_line)
 
             try:
-                conn.sendall((out + "\n").encode())
+                conn.sendall((out + "\n").encode("utf-8"))
             except OSError:
                 print("[Send failed: client not available]")
                 state["stop"] = True
@@ -130,11 +136,16 @@ def main() -> None:
                 conn.close()
         except Exception:
             pass
+
         try:
             server_sock.close()
         except Exception:
             pass
+
         print("[Server closed cleanly]")
+
 
 if __name__ == "__main__":
     main()
+
+# Version updated
